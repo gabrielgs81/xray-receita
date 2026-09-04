@@ -17,6 +17,14 @@ export type RevenueReport = {
 }
 
 export type Session = { id: string; writeToken: string }
+export type MarketResearch = {
+  summary?: string
+  price_benchmark?: { public_prices_found: number; minimum: number | null; median: number | null; maximum: number | null; interpretation: string }
+  competitors?: Array<{ name: string; address: string | null; distance_estimate: string | null; positioning: string | null; public_monthly_price: number | null; plans_found: string[]; wellhub_status: string; competitive_pressure: string; evidence: string; source_urls: string[] }>
+  wellhub_reading?: string
+  recommendations?: string[]
+  limitations?: string[]
+}
 
 export const initialAnswers: Answers = {
   ownerName: '', gymName: '', email: '', whatsapp: '', address: '', neighborhood: '', city: '', state: '',
