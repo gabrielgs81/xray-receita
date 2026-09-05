@@ -1,29 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, BadgeDollarSign, BarChart3, Check, ChevronRight, CircleDollarSign, Eye, Landmark, LoaderCircle, LockKeyhole, MapPin, Radar, ShieldCheck, Sparkles, Target, TrendingUp, Users } from 'lucide-react'
+import { ArrowRight, BadgeDollarSign, Check, ChevronRight, CircleDollarSign, Landmark, LoaderCircle, LockKeyhole, MapPin, Radar, ShieldCheck, Sparkles, Target, TrendingUp, Users } from 'lucide-react'
+import { RevenueQuiz } from './components/RevenueQuiz'
 import { calculateRevenue } from './lib/calculations'
 import { beginMarketResearch, completeSession, getPublicReport, saveProgress, startSession, storedSession, trackPageView } from './lib/supabase'
 import { initialAnswers, type Answers, type MarketResearch, type RevenueReport, type Session } from './lib/types'
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-const num = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
-const STEPS = ['Local e perfil', 'Receita atual', 'Planos e preços', 'Wellhub', 'Vendas e retenção']
-type NumberKey = { [K in keyof Answers]: Answers[K] extends number ? K : never }[keyof Answers]
-type TextKey = { [K in keyof Answers]: Answers[K] extends string ? K : never }[keyof Answers]
-
-function Money({ label, name, value, onChange, hint }: { label: string; name: NumberKey; value: number; onChange: (k: NumberKey, v: number) => void; hint?: string }) {
-  return <label className="field"><span>{label}</span><div className="money"><b>R$</b><input inputMode="decimal" name={name} value={value || ''} onChange={e => onChange(name, Number(e.target.value))} /></div>{hint && <small>{hint}</small>}</label>
-}
-function Range({ label, name, value, min, max, step = 1, suffix = '', onChange }: { label: string; name: NumberKey; value: number; min: number; max: number; step?: number; suffix?: string; onChange: (k: NumberKey, v: number) => void }) {
-  return <label className="range"><span>{label}<strong>{num.format(value)}{suffix}</strong></span><input type="range" name={name} value={value} min={min} max={max} step={step} onChange={e => onChange(name, Number(e.target.value))} /><div><small>{min}{suffix}</small><small>{max}{suffix}</small></div></label>
-}
 
 function App() {
   const [screen, setScreen] = useState<'home'|'quiz'|'loading'|'report'>('home')
-  const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Answers>(() => { try { return { ...initialAnswers, ...JSON.parse(localStorage.getItem('xray-receita-answers') || '{}') } } catch { return initialAnswers } })
   const [session, setSession] = useState<Session|null>(() => storedSession())
   const [remote, setRemote] = useState<{ answers: Answers; metrics: RevenueReport; market?: MarketResearch; researchStatus?: string }|null>(null)
   const report = useMemo(() => calculateRevenue(answers), [answers])
+
   useEffect(() => {
     void trackPageView()
     const slug = location.pathname.match(/^\/r\/([a-f0-9]{64})$/i)?.[1]
@@ -33,42 +23,40 @@ function App() {
     })
   }, [])
   useEffect(() => { localStorage.setItem('xray-receita-answers', JSON.stringify(answers)) }, [answers])
-  const setNumber = (key: NumberKey, value: number) => setAnswers(a => ({ ...a, [key]: value }))
-  const setText = (key: TextKey, value: string) => setAnswers(a => ({ ...a, [key]: value }))
-  const start = async () => { const created = await startSession(); setSession(created); setScreen('quiz'); void saveProgress(created, 0, answers, 'quiz_started') }
-  const next = async () => {
-    if (step === 0 && (!answers.email.includes('@') || !answers.city || !answers.state || !answers.gymName)) return
-    await saveProgress(session, step + 1, answers)
-    if (step === 0) void beginMarketResearch(session)
-    if (step < STEPS.length - 1) { setStep(step + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); return }
-    setScreen('loading'); const slug = await completeSession(session, answers, report)
+  useEffect(() => {
+    const abandoned = () => { if (screen === 'quiz') void saveProgress(session, 0, answers, 'quiz_abandoned') }
+    window.addEventListener('pagehide', abandoned)
+    return () => window.removeEventListener('pagehide', abandoned)
+  }, [answers, screen, session])
+
+  const start = async () => {
+    const created = await startSession()
+    setSession(created); setScreen('quiz')
+    void saveProgress(created, 0, answers, 'quiz_started')
+  }
+  const finish = async () => {
+    setScreen('loading')
+    const slug = await completeSession(session, answers, report)
     if (slug) {
       history.replaceState({}, '', `/r/${slug}`)
       const data = await getPublicReport(slug)
       const saved = data?.report as { answers?: Answers; metrics?: RevenueReport } | undefined
       if (saved?.answers && saved.metrics) setRemote({ answers: saved.answers, metrics: saved.metrics, market: data.market_research, researchStatus: data.research_status })
     }
-    setTimeout(() => setScreen('report'), 1900)
+    window.setTimeout(() => setScreen('report'), 1900)
   }
 
   if (screen === 'home') return <main className="landing">
     <header className="nav"><div className="brand"><Radar/><span>GYM X-RAY</span><em>RECEITA</em></div><button className="ghost" onClick={start}>Começar diagnóstico <ArrowRight/></button></header>
-    <section className="hero-home"><div className="hero-copy"><span className="eyebrow"><Sparkles/> RAIO-X FINANCEIRO DA SUA ACADEMIA</span><h1>Descubra quanto sua academia está <mark>deixando de faturar.</mark></h1><p>Transforme seus números em um plano direto para aumentar ticket, retenção e receita — sem precisar ampliar a estrutura.</p><button className="primary" onClick={start}>Calcular meu potencial de receita <ArrowRight/></button><small><ShieldCheck/> Diagnóstico confidencial · leva cerca de 6 minutos</small></div>
+    <section className="hero-home"><div className="hero-copy"><span className="eyebrow"><Sparkles/> RAIO-X FINANCEIRO DA SUA ACADEMIA</span><h1>Descubra quanto sua academia está <mark>deixando de faturar.</mark></h1><p>Avance por uma trilha de missões rápidas, desbloqueie indicadores e transforme seus números em um plano para aumentar ticket, retenção e receita.</p><button className="primary" onClick={start}>Iniciar minha trilha de receita <ArrowRight/></button><small><ShieldCheck/> Diagnóstico confidencial · progresso salvo automaticamente</small></div>
     <div className="opportunity-card"><div className="live"><i/> SIMULAÇÃO DO RESULTADO</div><span>Potencial anual identificado</span><strong>+ R$ 184.320</strong><div className="mini-chart"><i/><i/><i/><i/><i/><i/></div><p><TrendingUp/> 3 alavancas de crescimento encontradas</p></div></section>
-    <section className="proof"><p>Você vai descobrir</p><div><article><CircleDollarSign/><strong>Ticket ideal</strong><span>Preço e mix de planos</span></article><article><Users/><strong>Receita perdida</strong><span>Churn e inadimplência</span></article><article><MapPin/><strong>Mercado local</strong><span>Preços e posicionamento</span></article><article><Target/><strong>Plano de ação</strong><span>O que fazer primeiro</span></article></div></section>
+    <section className="proof"><p>Indicadores que você desbloqueia</p><div><article><CircleDollarSign/><strong>Ticket ideal</strong><span>Preço e mix de planos</span></article><article><Users/><strong>Receita perdida</strong><span>Churn e inadimplência</span></article><article><MapPin/><strong>Mercado local</strong><span>Preços e posicionamento</span></article><article><Target/><strong>Plano de ação</strong><span>O que fazer primeiro</span></article></div></section>
   </main>
 
-  if (screen === 'loading') return <main className="loading"><div className="scan"><Radar/><i/></div><span>CRUZANDO SEUS INDICADORES</span><h1>Estamos encontrando dinheiro escondido na sua operação.</h1><div className="loading-list"><p><Check/> Ticket e mix de planos analisados</p><p><Check/> Retenção e inadimplência calculadas</p><p className="active"><LoaderCircle/> Consolidando plano de crescimento</p></div></main>
+  if (screen === 'loading') return <main className="loading"><div className="scan"><Radar/><i/></div><span>100 PONTOS CONQUISTADOS</span><h1>Estamos transformando sua jornada em um mapa de crescimento.</h1><div className="loading-list"><p><Check/> Ticket e mix de planos decodificados</p><p><Check/> Retenção e inadimplência analisadas</p><p className="active"><LoaderCircle/> Consolidando oportunidades</p></div></main>
   if (screen === 'report') return <Report answers={remote?.answers || answers} report={remote?.metrics || report} market={remote?.market} researchStatus={remote?.researchStatus}/>
 
-  return <main className="quiz"><header className="quiz-head"><div className="brand"><Radar/><span>GYM X-RAY</span><em>RECEITA</em></div><div><strong>{STEPS[step]}</strong><span>Etapa {step + 1} de {STEPS.length}</span></div></header><div className="progress"><i style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}/></div>
-    <section className="quiz-card"><button className="back" onClick={() => step ? setStep(step - 1) : setScreen('home')}><ArrowLeft/> Voltar</button>
-    {step === 0 && <><span className="section-tag">COMEÇANDO PELO CONTEXTO</span><h1>Onde sua academia compete hoje?</h1><p className="lead">A localização será usada para pesquisar preços, modelos e presença no Wellhub na sua região.</p><div className="grid two"><label className="field"><span>Seu nome</span><input value={answers.ownerName} onChange={e => setText('ownerName', e.target.value)}/></label><label className="field"><span>Nome da academia *</span><input value={answers.gymName} onChange={e => setText('gymName', e.target.value)}/></label><label className="field"><span>E-mail para acessar o relatório *</span><input type="email" value={answers.email} onChange={e => setText('email', e.target.value)}/></label><label className="field"><span>WhatsApp</span><input value={answers.whatsapp} onChange={e => setText('whatsapp', e.target.value)}/></label><label className="field full"><span>Endereço</span><input value={answers.address} onChange={e => setText('address', e.target.value)} placeholder="Rua e número"/></label><label className="field"><span>Bairro</span><input value={answers.neighborhood} onChange={e => setText('neighborhood', e.target.value)}/></label><label className="field"><span>Cidade *</span><input value={answers.city} onChange={e => setText('city', e.target.value)}/></label><label className="field"><span>Estado *</span><input maxLength={2} value={answers.state} onChange={e => setText('state', e.target.value.toUpperCase())}/></label><label className="field"><span>Modelo</span><select value={answers.model} onChange={e => setText('model', e.target.value)}><option>Academia de bairro</option><option>Academia boutique / premium</option><option>Estúdio com atendimento personalizado</option><option>Academia de condomínio</option></select></label></div><Range label="Área útil aproximada" name="area" value={answers.area} min={50} max={3000} step={10} suffix=" m²" onChange={setNumber}/></>}
-    {step === 1 && <><span className="section-tag">REALIDADE FINANCEIRA</span><h1>Vamos abrir os números da operação.</h1><p className="lead">Não precisa estar perfeito. Use a média dos últimos três meses.</p><Range label="Alunos ativos pagantes" name="activeStudents" value={answers.activeStudents} min={20} max={3000} step={10} onChange={setNumber}/><div className="grid two"><Money label="Faturamento total mensal" name="totalRevenue" value={answers.totalRevenue} onChange={setNumber}/><Money label="Receita com mensalidades" name="membershipRevenue" value={answers.membershipRevenue} onChange={setNumber}/><Money label="Outras receitas" name="otherRevenue" value={answers.otherRevenue} onChange={setNumber} hint="Personal, loja, avaliação, locação etc."/><Money label="Meta de faturamento mensal" name="revenueGoal" value={answers.revenueGoal} onChange={setNumber}/></div><div className="insight"><Eye/><div><b>Primeira leitura</b><p>Seu ticket realizado atual é de <strong>{brl.format(report.realizedTicket)}</strong> por aluno.</p></div></div></>}
-    {step === 2 && <><span className="section-tag">ARQUITETURA DE PREÇOS</span><h1>Como seus planos estão organizados?</h1><p className="lead">Vamos comparar preço de tabela, prazo e o valor que realmente chega ao caixa.</p><div className="grid two"><Money label="Plano mensal" name="monthlyPrice" value={answers.monthlyPrice} onChange={setNumber}/><Money label="Plano trimestral (total)" name="quarterlyPrice" value={answers.quarterlyPrice} onChange={setNumber}/><Money label="Plano semestral (total)" name="semiannualPrice" value={answers.semiannualPrice} onChange={setNumber}/><Money label="Plano anual (total)" name="annualPrice" value={answers.annualPrice} onChange={setNumber}/></div><h3 className="subhead">Distribuição aproximada da base</h3><div className="grid two compact"><Range label="Mensal" name="monthlyMix" value={answers.monthlyMix} min={0} max={100} suffix="%" onChange={setNumber}/><Range label="Trimestral" name="quarterlyMix" value={answers.quarterlyMix} min={0} max={100} suffix="%" onChange={setNumber}/><Range label="Semestral" name="semiannualMix" value={answers.semiannualMix} min={0} max={100} suffix="%" onChange={setNumber}/><Range label="Anual" name="annualMix" value={answers.annualMix} min={0} max={100} suffix="%" onChange={setNumber}/></div><div className="grid two"><Range label="Inadimplência" name="defaultRate" value={answers.defaultRate} min={0} max={30} step={.5} suffix="%" onChange={setNumber}/><Range label="Taxa média de cartão" name="cardFee" value={answers.cardFee} min={0} max={12} step={.1} suffix="%" onChange={setNumber}/></div></>}
-    {step === 3 && <><span className="section-tag">CANAIS CORPORATIVOS</span><h1>Qual é o papel do Wellhub na sua receita?</h1><p className="lead">O valor recebido é contratual; combinamos o dado real informado por você com a presença pública dos concorrentes.</p><div className="choice"><button className={answers.wellhub ? 'selected':''} onClick={() => setAnswers(a => ({...a, wellhub:true}))}><Check/> Sim, aceito Wellhub</button><button className={!answers.wellhub ? 'selected':''} onClick={() => setAnswers(a => ({...a, wellhub:false}))}><Check/> Não aceito Wellhub</button></div>{answers.wellhub && <div className="grid two"><Range label="Check-ins mensais" name="wellhubCheckins" value={answers.wellhubCheckins} min={0} max={5000} step={10} onChange={setNumber}/><Money label="Receita mensal do Wellhub" name="wellhubRevenue" value={answers.wellhubRevenue} onChange={setNumber}/></div>}<div className="insight"><Landmark/><div><b>{answers.wellhub ? 'Receita por check-in' : 'Oportunidade a validar'}</b><p>{answers.wellhub ? `Hoje cada check-in gera aproximadamente ${brl.format(report.wellhubPerCheckin)}.` : 'O relatório mostrará quais concorrentes próximos aparecem publicamente no benefício.'}</p></div></div></>}
-    {step === 4 && <><span className="section-tag">MOTOR DE CRESCIMENTO</span><h1>Quantas pessoas entram — e quantas escapam?</h1><p className="lead">Crescer não é apenas vender mais. É impedir que a receita conquistada desapareça no mês seguinte.</p><div className="grid two compact"><Range label="Leads por mês" name="monthlyLeads" value={answers.monthlyLeads} min={0} max={1000} step={5} onChange={setNumber}/><Range label="Novos alunos por mês" name="newStudents" value={answers.newStudents} min={0} max={300} onChange={setNumber}/><Range label="Cancelamentos por mês" name="cancellations" value={answers.cancellations} min={0} max={300} onChange={setNumber}/><label className="field"><span>Último reajuste de preços</span><select value={answers.lastIncrease} onChange={e => setText('lastIncrease', e.target.value)}><option>Nos últimos 6 meses</option><option>Entre 6 e 12 meses</option><option>Mais de 12 meses</option><option>Nunca reajustei</option></select></label></div><div className={`insight ${report.netGrowth < 0 ? 'danger':''}`}><BarChart3/><div><b>Saldo mensal: {report.netGrowth >= 0 ? '+' : ''}{report.netGrowth} alunos</b><p>Seu churn estimado é de <strong>{num.format(report.churnRate * 100)}%</strong> ao mês.</p></div></div></>}
-    <button className="primary continue" onClick={next}>{step === STEPS.length - 1 ? 'Gerar meu Raio-X de Receita' : 'Continuar'} <ArrowRight/></button><p className="save"><LockKeyhole/> Suas respostas são salvas automaticamente.</p></section></main>
+  return <RevenueQuiz answers={answers} onChange={setAnswers} onExit={() => setScreen('home')} onCheckpoint={(stage, current, event) => saveProgress(session, stage, current, event)} onResearch={() => void beginMarketResearch(session)} onFinish={() => void finish()}/>
 }
 
 function Report({ answers, report, market, researchStatus }: { answers: Answers; report: RevenueReport; market?: MarketResearch; researchStatus?: string }) {
