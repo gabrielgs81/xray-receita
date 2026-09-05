@@ -20,10 +20,32 @@ export type Session = { id: string; writeToken: string }
 export type MarketResearch = {
   summary?: string
   price_benchmark?: { public_prices_found: number; minimum: number | null; median: number | null; maximum: number | null; interpretation: string }
-  competitors?: Array<{ name: string; address: string | null; distance_estimate: string | null; positioning: string | null; public_monthly_price: number | null; plans_found: string[]; wellhub_status: string; competitive_pressure: string; evidence: string; source_urls: string[] }>
+  market?: {
+    gyms_identified: number
+    wellhub_confirmed: number
+    without_wellhub_presence: number
+    public_prices_found: number
+    average_monthly_price: number | null
+    median_monthly_price: number | null
+    minimum_monthly_price: number | null
+    maximum_monthly_price: number | null
+  }
+  competitors?: Array<{
+    name: string
+    address: string | null
+    distance_km: number | null
+    category: string | null
+    public_monthly_price: number | null
+    plans_found: string[]
+    wellhub_status: 'presente' | 'sem_presenca_identificada' | 'nao_verificado' | 'encontrado' | 'nao_encontrado' | 'inconclusivo'
+    source_urls: string[]
+    distance_estimate?: string | null
+    positioning?: string | null
+    competitive_pressure?: string
+    evidence?: string
+  }>
   wellhub_reading?: string
-  recommendations?: string[]
-  limitations?: string[]
+  sources_checked?: { maps: boolean; wellhub: boolean; pricing: boolean }
 }
 
 export const initialAnswers: Answers = {

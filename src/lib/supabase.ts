@@ -30,5 +30,5 @@ export async function getPublicReport(slug: string) {
   return error ? null : data
 }
 export async function beginMarketResearch(session: Session | null) {
-  if (supabase && session) await supabase.functions.invoke('xray-revenue-market-research', { body: { session_id: session.id, write_token: session.writeToken } })
+  if (supabase && session) await supabase.functions.invoke('xray-revenue-market-research-v2', { body: { session_id: session.id, write_token: session.writeToken } })
 }
